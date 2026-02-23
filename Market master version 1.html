@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Master - Learn & Invest</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom Animations & Styles */
+        body { font-family: 'Inter', sans-serif; }
+        .bg-grid {
+            background-image: linear-gradient(to right, #1f2937 1px, transparent 1px),
+                              linear-gradient(to bottom, #1f2937 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .modal-active { display: flex !important; }
+        .flash-green { animation: flashG 1s ease-out; }
+        .flash-red { animation: flashR 1s ease-out; }
+        @keyframes flashG { 0% { background-color: rgba(34, 197, 94, 0.4); } 100% { background-color: transparent; } }
+        @keyframes flashR { 0% { background-color: rgba(239, 68, 68, 0.4); } 100% { background-color: transparent; } }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1f2937; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen bg-grid custom-scrollbar flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-gray-900 border-b border-gray-800 sticky top-0 z-10 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <span class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-blue-500">Market Master</span>
+                    <span class="bg-gray-800 text-xs px-2 py-1 rounded text-gray-300 border border-gray-700">Day <span id="day-counter">1</span></span>
+                </div>
+                <div class="flex items-center space-x-6 text-sm">
+                    <div class="text-center">
+                        <p class="text-gray-400 text-xs uppercase tracking-wider">Balance</p>
+                        <p class="font-bold text-green-400 text-lg" id="ui-balance">$100,000</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-gray-400 text-xs uppercase tracking-wider">Portfolio</p>
+                        <p class="font-bold text-blue-400 text-lg" id="ui-portfolio-value">$0</p>
+                    </div>
+                    <div class="hidden sm:block text-center border-l border-gray-700 pl-6">
+                        <p class="text-gray-400 text-xs uppercase tracking-wider">Rank: <span id="ui-rank" class="text-white">Beginner</span></p>
+                        <div class="flex items-center mt-1 space-x-2">
+                            <div class="w-24 bg-gray-700 h-2 rounded-full overflow-hidden">
+                                <div id="ui-xp-bar" class="bg-purple-500 h-full" style="width: 0%"></div>
+                            </div>
+                            <span class="text-xs font-bold text-purple-400" id="ui-xp">0 XP</span>
+                        </div>
+                    </div>
+                    <div class="text-center border-l border-gray-700 pl-6">
+                        <p class="text-gray-400 text-xs uppercase tracking-wider">Level</p>
+                        <p class="font-bold text-white text-lg" id="ui-level">1</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex flex-col md:flex-row gap-6">
+        
+        <!-- Market Section -->
+        <div class="w-full md:w-2/3">
+            <div class="flex justify-between items-end mb-4">
+                <div>
+                    <h2 class="text-xl font-bold">Market Overview</h2>
+                    <p class="text-sm text-gray-400" id="level-description">Level 1: The Basics - Learn to Buy & Sell.</p>
+                </div>
+                <button onclick="endDay()" class="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg transform transition hover:scale-105">
+                    End Day ➔
+                </button>
+            </div>
+            
+            <div id="stock-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Stock Cards will be injected here via JS -->
+            </div>
+        </div>
+
+        <!-- Portfolio Section -->
+        <div class="w-full md:w-1/3">
+            <h2 class="text-xl font-bold mb-4">Your Holdings</h2>
+            <div id="portfolio-list" class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-lg flex flex-col gap-3 min-h-[300px]">
+                <!-- Portfolio items injected here -->
+            </div>
+
+            <!-- Danger Zone / Reset -->
+            <div class="mt-8 text-right">
+                <button onclick="resetGame()" class="text-xs text-gray-500 hover:text-red-400 underline decoration-dotted transition">Reset Progress</button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modals -->
+
+    <!-- Transaction Modal (Buy/Sell) -->
+    <div id="tx-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 items-center justify-center backdrop-blur-sm">
+        <div class="bg-gray-900 border border-gray-700 p-6 rounded-xl w-96 max-w-full shadow-2xl relative">
+            <h3 id="tx-title" class="text-2xl font-bold mb-2">Buy Stock</h3>
+            <p id="tx-subtitle" class="text-sm text-gray-400 mb-6">Current Price: $0.00</p>
+            
+            <div class="mb-4">
+                <label class="block text-sm text-gray-400 mb-1">Quantity</label>
+                <input type="number" id="tx-qty" min="1" value="1" class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white focus:outline-none focus:border-green-500" oninput="updateTxTotal()">
+            </div>
+            
+            <div class="flex justify-between items-center mb-6">
+                <span class="text-sm text-gray-400">Total Estimate:</span>
+                <span id="tx-total" class="font-bold text-lg">$0.00</span>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="closeModal('tx-modal')" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded transition">Cancel</button>
+                <button id="tx-confirm-btn" class="flex-1 bg-green-500 hover:bg-green-400 text-white py-2 rounded transition font-bold">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Modal -->
+    <div id="chart-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-gray-900 border border-gray-700 p-6 rounded-xl w-full max-w-3xl shadow-2xl relative">
+            <button onclick="closeModal('chart-modal')" class="absolute top-4 right-4 text-gray-400 hover:text-white text-xl">&times;</button>
+            <h3 id="chart-title" class="text-2xl font-bold mb-1">Stock Chart</h3>
+            <p id="chart-desc" class="text-sm text-gray-400 mb-4">Historical Performance</p>
+            
+            <div class="bg-gray-800 p-2 rounded border border-gray-700 h-80 w-full relative">
+                <canvas id="stockChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- End Day / Educational Modal -->
+    <div id="endday-modal" class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 items-center justify-center backdrop-blur-md p-4">
+        <div class="bg-gray-900 border border-gray-700 p-6 rounded-xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <h3 class="text-3xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-green-400">Market Closed!</h3>
+            <p class="text-sm text-gray-400 mb-6">Here is what happened today.</p>
+            
+            <div id="daily-log" class="space-y-4 mb-6">
+                <!-- Log items injected here -->
+            </div>
+
+            <div id="level-up-alert" class="hidden mb-6 bg-gradient-to-r from-purple-600 to-indigo-600 p-4 rounded-lg text-center shadow-lg border border-purple-400">
+                <h4 class="font-bold text-xl text-white animate-pulse">🎉 Level Up! 🎉</h4>
+                <p class="text-sm text-purple-100 mt-1" id="level-up-desc">New concepts and stocks unlocked.</p>
+            </div>
+
+            <button onclick="closeEndDay()" class="w-full bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-lg transition font-bold text-lg shadow-lg">Start Next Day</button>
+        </div>
+    </div>
+
+    <!-- JavaScript Game Logic -->
+    <script>
+        /* -------------------------
+           1. DATABASE & INITIAL STATE
+           ------------------------- */
+        
+        // Master list of all possible stocks in the game
+        const masterStocks = {
+            'STK01': { id: 'STK01', name: 'TechNova', sector: 'Technology', base_price: 120, price: 120, pe_ratio: 45, trend: 'bullish', history: [120] },
+            'STK02': { id: 'STK02', name: 'SafeBank', sector: 'Finance', base_price: 50, price: 50, pe_ratio: 12, trend: 'stable', history: [50] },
+            'STK03': { id: 'STK03', name: 'MemeCoin', sector: 'Speculative', base_price: 10, price: 10, pe_ratio: 150, trend: 'volatile', history: [10] },
+            'STK04': { id: 'STK04', name: 'GreenEnergy', sector: 'Energy', base_price: 80, price: 80, pe_ratio: 25, trend: 'bullish', history: [80] }
+        };
+
+        const ranks = [
+            { limit: 100, name: "Beginner", color: "text-gray-400" },
+            { limit: 300, name: "Retail Trader", color: "text-blue-400" },
+            { limit: 700, name: "Market Analyst", color: "text-purple-400" },
+            { limit: Infinity, name: "Fund Manager", color: "text-yellow-400" }
+        ];
+
+        // Default user state
+        const defaultState = {
+            balance: 100000,
+            portfolio: {}, // e.g. { 'STK01': { quantity: 50, avgPrice: 110 } }
+            xp: 0,
+            level: 1,
+            day: 1,
+            stocks: JSON.parse(JSON.stringify(masterStocks)), // Deep copy
+            startBalance: 100000
+        };
+
+        let gameState = {};
+        let currentChart = null;
+
+        // Temporary vars for transactions
+        let txType = '';
+        let txStockId = '';
+
+        /* -------------------------
+           2. INITIALIZATION
+           ------------------------- */
+        
+        function initGame() {
+            const saved = localStorage.getItem('marketMasterData');
+            if (saved) {
+                gameState = JSON.parse(saved);
+                // Fallback for updates
+                if(!gameState.startBalance) gameState.startBalance = 100000;
+            } else {
+                gameState = JSON.parse(JSON.stringify(defaultState));
+            }
+            updateUI();
+        }
+
+        function saveGame() {
+            localStorage.setItem('marketMasterData', JSON.stringify(gameState));
+        }
+
+        function resetGame() {
+            if(confirm("Are you sure you want to wipe all progress?")) {
+                localStorage.removeItem('marketMasterData');
+                location.reload();
+            }
+        }
+
+        /* -------------------------
+           3. UI RENDERING
+           ------------------------- */
+
+        function formatCurrency(num) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+        }
+
+        function getRank(xp) {
+            for(let r of ranks) {
+                if(xp < r.limit) return r;
+            }
+            return ranks[ranks.length-1];
+        }
+
+        function getActiveStocksForLevel(level) {
+            let active = ['STK01'];
+            if(level >= 2) active.push('STK02');
+            if(level >= 3) active.push('STK03');
+            if(level >= 4) active.push('STK04');
+            return active;
+        }
+
+        function updateUI() {
+            // Calculate Portfolio Value
+            let portValue = 0;
+            for (let id in gameState.portfolio) {
+                let holding = gameState.portfolio[id];
+                if(holding.quantity > 0) {
+                    portValue += holding.quantity * gameState.stocks[id].price;
+                }
+            }
+
+            // Update Top Bar
+            document.getElementById('ui-balance').innerText = formatCurrency(gameState.balance);
+            document.getElementById('ui-portfolio-value').innerText = formatCurrency(portValue);
+            document.getElementById('ui-level').innerText = gameState.level;
+            document.getElementById('day-counter').innerText = gameState.day;
+            document.getElementById('ui-xp').innerText = `${gameState.xp} XP`;
+            
+            let rankInfo = getRank(gameState.xp);
+            let rankEl = document.getElementById('ui-rank');
+            rankEl.innerText = rankInfo.name;
+            rankEl.className = rankInfo.color + ' font-bold';
+
+            // XP Bar progression
+            let prevLimit = 0;
+            let currentLimit = rankInfo.limit === Infinity ? 1000 : rankInfo.limit;
+            for(let i=0; i<ranks.length; i++) {
+                if(ranks[i].name === rankInfo.name && i > 0) prevLimit = ranks[i-1].limit;
+            }
+            let progress = Math.min(100, ((gameState.xp - prevLimit) / (currentLimit - prevLimit)) * 100);
+            document.getElementById('ui-xp-bar').style.width = progress + '%';
+
+            // Level Descriptions
+            const levelDescs = {
+                1: "Level 1: The Basics - Learn to Buy, Hold, and Sell.",
+                2: "Level 2: The P/E Ratio - Compare overvalued vs safe stocks.",
+                3: "Level 3: Volatility - Beware of speculative bubbles!",
+                4: "Level 4: Master Trader - Manage a diverse portfolio."
+            };
+            document.getElementById('level-description').innerText = levelDescs[gameState.level] || levelDescs[4];
+
+            renderMarket();
+            renderPortfolio();
+        }
+
+        function renderMarket() {
+            const grid = document.getElementById('stock-grid');
+            grid.innerHTML = '';
+            
+            const activeIds = getActiveStocksForLevel(gameState.level);
+
+            activeIds.forEach(id => {
+                const stock = gameState.stocks[id];
+                
+                // calculate daily change if history > 1
+                let changeStr = '';
+                let colorClass = 'text-gray-400';
+                if(stock.history.length > 1) {
+                    let prev = stock.history[stock.history.length - 2];
+                    let diff = stock.price - prev;
+                    let perc = (diff / prev) * 100;
+                    if(diff >= 0) {
+                        changeStr = `+${formatCurrency(diff)} (+${perc.toFixed(2)}%)`;
+                        colorClass = 'text-green-400';
+                    } else {
+                        changeStr = `${formatCurrency(diff)} (${perc.toFixed(2)}%)`;
+                        colorClass = 'text-red-400';
+                    }
+                }
+
+                const card = document.createElement('div');
+                card.className = "bg-gray-800 border border-gray-700 p-5 rounded-xl shadow hover:shadow-lg transition flex flex-col justify-between";
+                card.id = `card-${id}`;
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="font-bold text-lg">${stock.name}</h3>
+                                <p class="text-xs text-gray-500">${stock.sector}</p>
+                            </div>
+                            <button onclick="openChart('${id}')" class="text-blue-400 hover:text-blue-300 bg-blue-900 bg-opacity-30 p-1 rounded transition text-xs flex items-center gap-1">
+                                📊 Chart
+                            </button>
+                        </div>
+                        
+                        <div class="my-3">
+                            <p class="text-3xl font-black">${formatCurrency(stock.price)}</p>
+                            <p class="text-sm ${colorClass} font-medium">${changeStr}</p>
+                        </div>
+                        
+                        <div class="flex gap-4 text-xs text-gray-400 mb-4 bg-gray-900 p-2 rounded">
+                            <div><span class="block text-gray-500">P/E Ratio</span> ${stock.pe_ratio}</div>
+                            <div><span class="block text-gray-500">Trend</span> <span class="capitalize">${stock.trend}</span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-2 mt-auto">
+                        <button onclick="openTxModal('buy', '${id}')" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-2 rounded font-bold transition">Buy</button>
+                        <button onclick="openTxModal('sell', '${id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-2 rounded font-bold transition">Sell</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function renderPortfolio() {
+            const list = document.getElementById('portfolio-list');
+            list.innerHTML = '';
+
+            let hasHoldings = false;
+
+            for(let id in gameState.portfolio) {
+                let holding = gameState.portfolio[id];
+                if(holding.quantity > 0) {
+                    hasHoldings = true;
+                    let stock = gameState.stocks[id];
+                    let currentVal = holding.quantity * stock.price;
+                    let investedVal = holding.quantity * holding.avgPrice;
+                    let profit = currentVal - investedVal;
+                    let profitPerc = (profit / investedVal) * 100;
+                    
+                    let pColor = profit >= 0 ? 'text-green-400' : 'text-red-400';
+                    let pSign = profit >= 0 ? '+' : '';
+
+                    list.innerHTML += `
+                        <div class="bg-gray-800 p-3 rounded-lg border border-gray-700 flex justify-between items-center">
+                            <div>
+                                <h4 class="font-bold">${stock.name}</h4>
+                                <p class="text-xs text-gray-400">${holding.quantity} Shares @ ${formatCurrency(holding.avgPrice)} avg</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-bold">${formatCurrency(currentVal)}</p>
+                                <p class="text-xs ${pColor}">${pSign}${formatCurrency(profit)} (${pSign}${profitPerc.toFixed(1)}%)</p>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            if(!hasHoldings) {
+                list.innerHTML = `
+                    <div class="flex-1 flex flex-col items-center justify-center text-gray-500 opacity-70">
+                        <svg class="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                        <p class="text-sm">No stocks owned yet.</p>
+                        <p class="text-xs mt-1">Buy from the market to start!</p>
+                    </div>
+                `;
+            }
+        }
+
+        /* -------------------------
+           4. MODALS & TRANSACTIONS
+           ------------------------- */
+
+        function openModal(id) { document.getElementById(id).classList.add('modal-active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('modal-active'); }
+
+        function openTxModal(type, stockId) {
+            txType = type;
+            txStockId = stockId;
+            const stock = gameState.stocks[stockId];
+            
+            document.getElementById('tx-title').innerText = type === 'buy' ? `Buy ${stock.name}` : `Sell ${stock.name}`;
+            document.getElementById('tx-subtitle').innerText = `Current Price: ${formatCurrency(stock.price)}`;
+            
+            let qtyInput = document.getElementById('tx-qty');
+            qtyInput.value = 1;
+
+            // set max
+            if(type === 'buy') {
+                qtyInput.max = Math.floor(gameState.balance / stock.price);
+            } else {
+                let holding = gameState.portfolio[stockId];
+                qtyInput.max = holding ? holding.quantity : 0;
+            }
+
+            document.getElementById('tx-confirm-btn').onclick = processTx;
+            document.getElementById('tx-confirm-btn').className = `flex-1 py-2 rounded transition font-bold text-white ${type==='buy' ? 'bg-green-500 hover:bg-green-400' : 'bg-red-500 hover:bg-red-400'}`;
+            
+            updateTxTotal();
+            openModal('tx-modal');
+        }
+
+        function updateTxTotal() {
+            let qty = parseInt(document.getElementById('tx-qty').value) || 0;
+            let total = qty * gameState.stocks[txStockId].price;
+            let totalEl = document.getElementById('tx-total');
+            totalEl.innerText = formatCurrency(total);
+            
+            if(txType === 'buy' && total > gameState.balance) {
+                totalEl.classList.add('text-red-500');
+            } else {
+                totalEl.classList.remove('text-red-500');
+            }
+        }
+
+        function processTx() {
+            let qty = parseInt(document.getElementById('tx-qty').value);
+            if(isNaN(qty) || qty <= 0) return alert("Enter a valid quantity.");
+            
+            let stock = gameState.stocks[txStockId];
+            let total = qty * stock.price;
+
+            if (txType === 'buy') {
+                if(total > gameState.balance) return alert("Insufficient funds!");
+                
+                gameState.balance -= total;
+                
+                if(!gameState.portfolio[txStockId]) {
+                    gameState.portfolio[txStockId] = { quantity: 0, avgPrice: 0 };
+                }
+                
+                let holding = gameState.portfolio[txStockId];
+                let totalCostBefore = holding.quantity * holding.avgPrice;
+                holding.quantity += qty;
+                holding.avgPrice = (totalCostBefore + total) / holding.quantity;
+                
+            } else {
+                let holding = gameState.portfolio[txStockId];
+                if(!holding || holding.quantity < qty) return alert("Insufficient shares to sell!");
+                
+                holding.quantity -= qty;
+                gameState.balance += total;
+            }
+
+            closeModal('tx-modal');
+            saveGame();
+            updateUI();
+        }
+
+        /* -------------------------
+           5. CHARTS (Chart.js)
+           ------------------------- */
+
+        function openChart(stockId) {
+            const stock = gameState.stocks[stockId];
+            document.getElementById('chart-title').innerText = stock.name;
+            document.getElementById('chart-desc').innerText = `Sector: ${stock.sector} | Trend: ${stock.trend}`;
+            
+            const ctx = document.getElementById('stockChart').getContext('2d');
+            
+            if(currentChart) currentChart.destroy();
+
+            // Generate labels for X axis (Day 1, Day 2...)
+            const labels = Array.from({length: stock.history.length}, (_, i) => `Day ${gameState.day - stock.history.length + i + 1}`);
+
+            // Determine line color based on overall trend
+            const startPrice = stock.history[0];
+            const endPrice = stock.history[stock.history.length-1];
+            const color = endPrice >= startPrice ? '#22c55e' : '#ef4444'; // Green or Red
+
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Price ($)',
+                        data: stock.history,
+                        borderColor: color,
+                        backgroundColor: color + '33', // Add opacity for fill
+                        borderWidth: 3,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        fill: true,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } },
+                        y: { grid: { color: '#374151' }, ticks: { color: '#9ca3af', callback: (value) => '$'+value } }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index',
+                    },
+                }
+            });
+
+            openModal('chart-modal');
+        }
+
+        /* -------------------------
+           6. MARKET SIMULATION ENGINE
+           ------------------------- */
+
+        function endDay() {
+            let logHTML = '';
+            let activeIds = getActiveStocksForLevel(gameState.level);
+
+            activeIds.forEach(id => {
+                let stock = gameState.stocks[id];
+                let oldPrice = stock.price;
+                let percentChange = 0;
+                let reason = "";
+                let r = Math.random();
+
+                // 1. P/E Logic (Educational mapping)
+                if (stock.pe_ratio > 40 && r < 0.3) {
+                    percentChange = -0.08 - (Math.random() * 0.10); // -8% to -18%
+                    reason = `Fell due to market correction. A high P/E ratio (${stock.pe_ratio}) indicated the stock was overvalued.`;
+                } 
+                // 2. Trend Logic
+                else if (stock.trend === 'bullish') {
+                    if (r < 0.65) {
+                        percentChange = 0.02 + (Math.random() * 0.06); // +2% to +8%
+                        reason = "Rose due to strong earnings and a continued bullish trend.";
+                    } else {
+                        percentChange = -0.01 - (Math.random() * 0.04);
+                        reason = "Minor pullback as some investors took profits.";
+                    }
+                } 
+                // 3. Volatile/Speculative Logic
+                else if (stock.trend === 'volatile') {
+                    if (r < 0.5) {
+                        percentChange = 0.10 + (Math.random() * 0.20); // +10% to +30%
+                        reason = "Surged massively on social media hype (Speculative bubble).";
+                    } else {
+                        percentChange = -0.10 - (Math.random() * 0.20); // -10% to -30%
+                        reason = "Crashed as hype faded and speculators panic-sold.";
+                    }
+                } 
+                // 4. Stable Logic
+                else {
+                    percentChange = (Math.random() * 0.06) - 0.03; // -3% to +3%
+                    reason = "Normal market fluctuation for a stable sector.";
+                }
+
+                // Apply Change
+                let newPrice = parseFloat((oldPrice * (1 + percentChange)).toFixed(2));
+                // Prevent price from going to 0 or negative
+                if(newPrice <= 1) newPrice = 1 + Math.random(); 
+
+                stock.price = newPrice;
+                stock.history.push(newPrice);
+                
+                // Trim history to prevent huge arrays (keep last 30 days)
+                if(stock.history.length > 30) stock.history.shift();
+
+                // Visual flash on card
+                let card = document.getElementById(`card-${id}`);
+                if(card) {
+                    card.classList.remove('flash-green', 'flash-red');
+                    void card.offsetWidth; // trigger reflow
+                    card.classList.add(percentChange >= 0 ? 'flash-green' : 'flash-red');
+                }
+
+                // Build Log entry
+                let color = percentChange >= 0 ? 'text-green-400' : 'text-red-400';
+                let sign = percentChange >= 0 ? '+' : '';
+                logHTML += `
+                    <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                        <div class="flex justify-between items-center mb-1">
+                            <h4 class="font-bold text-lg">${stock.name}</h4>
+                            <span class="${color} font-bold">${sign}${(percentChange*100).toFixed(1)}%</span>
+                        </div>
+                        <div class="flex justify-between text-sm mb-2 text-gray-400">
+                            <span>Old: ${formatCurrency(oldPrice)}</span>
+                            <span>New: ${formatCurrency(newPrice)}</span>
+                        </div>
+                        <p class="text-sm bg-gray-900 p-2 rounded text-gray-300 border-l-2 ${percentChange >= 0 ? 'border-green-500' : 'border-red-500'}">
+                            💡 <strong>Why?</strong> ${reason}
+                        </p>
+                    </div>
+                `;
+            });
+
+            document.getElementById('daily-log').innerHTML = logHTML;
+
+            // Update Game State
+            gameState.day++;
+            
+            // Calculate Portfolio worth for XP
+            let totalWealth = gameState.balance;
+            for(let id in gameState.portfolio) {
+                if(gameState.portfolio[id].quantity > 0) {
+                    totalWealth += gameState.portfolio[id].quantity * gameState.stocks[id].price;
+                }
+            }
+
+            // XP Logic
+            if(totalWealth > gameState.startBalance) {
+                gameState.xp += 15; // Profit day
+                gameState.startBalance = totalWealth; // reset watermark to prevent farming same profit
+            } else {
+                gameState.xp += 5; // Survival XP
+            }
+
+            // Level Up Logic (Every 5 days, up to level 4)
+            document.getElementById('level-up-alert').classList.add('hidden');
+            if(gameState.day % 5 === 0 && gameState.level < 4) {
+                gameState.level++;
+                document.getElementById('level-up-alert').classList.remove('hidden');
+            }
+
+            saveGame();
+            updateUI();
+            
+            // Show modal
+            openModal('endday-modal');
+        }
+
+        function closeEndDay() {
+            closeModal('endday-modal');
+        }
+
+        /* -------------------------
+           7. BOOTSTRAP
+           ------------------------- */
+        
+        window.onload = initGame;
+
+    </script>
+</body>
+</html>
